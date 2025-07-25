@@ -8,7 +8,7 @@ from pydub.playback import play
 from io import BytesIO
 from TTS.api import TTS
 import sounddevice as sd
-import threading
+from threading import Thread
 tts = None
 TTS_READY = 0
 
@@ -31,13 +31,29 @@ def respond_voice(text):
 def AI(user):
         result = subprocess.run(
                 ["ollama", "run", "gemma:2b", user],
+                creationflags=subprocess.CREATE_NO_WINDOW,
                 capture_output=True,
                 text=True,
                 encoding="utf-8"
         )
         return result.stdout.strip()
 
-
+def secondaryfunction():
+        while(1):
+                user = input("Waiting for AI Input: ")
+                print(user)
+                if user == "Excel":
+                        excel()
+                elif user == "internet":
+                        internet()
+                elif user == "music":
+                        media()
+                elif user.startswith("hello AI"):
+                        response = AI(user[len("hello AI"):].lstrip())
+                        print("AI response: " + response)
+                elif user == "close AI":
+                        os._exit(1)
+        
 def mainfunction(source):
         r.adjust_for_ambient_noise(source, duration=1)
         #r.pause_threshold = 1.0
@@ -62,7 +78,7 @@ def mainfunction(source):
                 if TTS_READY == 1:
                         respond_voice(response)
         elif user == "close AI":
-                sys.exit()
+                os._exit(1)
 
 def background_task():
         #"tts_models/en/ljspeech/tacotron2-DDC" is the better model but slower
@@ -71,7 +87,8 @@ def background_task():
         TTS_READY = 1
         
 if __name__ == "__main__":
-        thread = threading.Thread(target=background_task)
+        
+        thread = Thread(target=background_task)
         thread.start()
         r = sr.Recognizer()
         print("Main Thread starting")
@@ -79,7 +96,7 @@ if __name__ == "__main__":
         r.pause_threshold = 1.5        # seconds of silence before stopping recording
         r.energy_threshold = 300       # minimum audio level to detect speech
         r.dynamic_energy_threshold = True
-
+        Thread(target=secondaryfunction).start()
         with sr.Microphone() as source:
                 while 1:
                         mainfunction(source)
