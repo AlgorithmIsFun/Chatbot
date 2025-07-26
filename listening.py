@@ -1,17 +1,38 @@
-import pyaudio,os
+import os
 import speech_recognition as sr
 import subprocess
-import requests
 import sys
-from pydub import AudioSegment
-from pydub.playback import play
-from io import BytesIO
+import asyncio
 from TTS.api import TTS
 import sounddevice as sd
 from threading import Thread
+from googletrans import Translator
+import builtins
+import functools
+print = functools.partial(builtins.print, flush=True)
 tts = None
 TTS_READY = 0
-
+my_lang = {
+        "to Arabic": "ar",
+        "to Chinese": "zh-CN",
+        "to Dutch": "nl",
+        "to English": "en",
+        "to French": "fr",
+        "to German": "de",
+        "to Hindi": "hi",
+        "to Italian": "it",
+        "to Japanese": "ja",
+        "to Korean": "ko",
+        "to Persian": "fa",
+        "to Polish": "pl",
+        "to Portuguese": "pt",
+        "to Russian": "ru",
+        "to Spanish": "es",
+        "to Turkish": "tr",
+        "to Ukrainian": "uk",
+        "to Urdu": "ur",
+        "to Vietnamese": "vi"
+        }
 def excel():
         os.system("start excel.exe")
 
@@ -37,22 +58,24 @@ def AI(user):
                 encoding="utf-8"
         )
         return result.stdout.strip()
+async def translate_text(text, dest_lang='fr'):
+        translator = Translator()
+        result = await translator.translate(text, src='en', dest=dest_lang)
+        return result.text         
 
-def secondaryfunction():
-        while(1):
-                user = input("Waiting for AI Input: ")
-                print(user)
-                if user == "Excel":
-                        excel()
-                elif user == "internet":
-                        internet()
-                elif user == "music":
-                        media()
-                elif user.startswith("hello AI"):
-                        response = AI(user[len("hello AI"):].lstrip())
-                        print("AI response: " + response)
-                elif user == "close AI":
-                        os._exit(1)
+def translate_t(user):
+        user = user[len("translate"):].lstrip()
+        lang_found = 0
+        for key in my_lang:
+                if user.endswith(key):
+                        user = user[:-len(key)].rstrip()
+                        dest_lang = my_lang[key]
+                        lang_found = 1
+        if lang_found == 0:
+                print("I don't know your language, defualt translate to english")
+                dest_lang = 'en'
+        result_text = asyncio.run(translate_text(user, dest_lang))
+        print(result_text)
         
 def mainfunction(source):
         r.adjust_for_ambient_noise(source, duration=1)
@@ -79,6 +102,8 @@ def mainfunction(source):
                         respond_voice(response)
         elif user == "close AI":
                 os._exit(1)
+        elif user.startswith("translate"):
+                translate_t(user)
 
 def background_task():
         #"tts_models/en/ljspeech/tacotron2-DDC" is the better model but slower
@@ -87,17 +112,25 @@ def background_task():
         TTS_READY = 1
         
 if __name__ == "__main__":
-        
+        print("Start of main")
         thread = Thread(target=background_task)
         thread.start()
         r = sr.Recognizer()
-        print("Main Thread starting")
         # Extend how long it waits before assuming the user is done speaking
         r.pause_threshold = 1.5        # seconds of silence before stopping recording
         r.energy_threshold = 300       # minimum audio level to detect speech
         r.dynamic_energy_threshold = True
-        Thread(target=secondaryfunction).start()
+        CREATE_NEW_CONSOLE = 0x00000010
+        p = subprocess.Popen(["python", "secondary.py"],
+                                creationflags=CREATE_NEW_CONSOLE
+                             )
         with sr.Microphone() as source:
-                while 1:
-                        mainfunction(source)
-
+                try:
+                        while 1:
+                                mainfunction(source)
+                except KeyboardInterrupt:
+                        print("Main received Ctrl+C. Killing subprocess...")
+                        p.terminate()
+                        p.wait()
+                        print("Subprocess terminated.")
+                        sys.exit(0)
