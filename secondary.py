@@ -7,17 +7,13 @@ import asyncio
 from googletrans import Translator
 import builtins
 import functools
-from langdetect import detect
 import fasttext
-import langid
 import dateparser
-import win32com.client
 import spacy
 import re
 from datetime import datetime, timedelta
 from tzlocal import get_localzone_name
 from dateparser.search import search_dates
-from sympy.physics.mechanics import body
 
 import datetime
 import os.path
