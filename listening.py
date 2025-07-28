@@ -21,6 +21,8 @@ import sqlite3
 import datetime
 import os.path
 import feedparser
+import webbrowser
+import json
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -438,6 +440,33 @@ def openApp(message):
                 app_name = match.group(1).strip()
                 os.system("start " + app_name + ".exe")
 
+def playmedia(message):
+        match = re.search(r"play\s+(.*)", message, re.IGNORECASE)
+        if match:
+                query = match.group(1).strip()
+                # Add "music playlist" if not already included
+                if "music" not in query.lower():
+                        query += " music playlist"
+                search_query = query
+        else:
+                search_query = "relaxing music playlist"
+        result = subprocess.run([
+                "yt-dlp",
+                f"ytsearch1:{search_query}",
+                "--dump-json"
+        ], stdout=subprocess.PIPE, text=True)
+        url = ""
+        if result.returncode == 0:
+                video_data = json.loads(result.stdout)
+                url = video_data.get("webpage_url")
+        else:
+                url = ""
+        if url == "":
+                print("No results found.")
+        else:
+                webbrowser.open(url)
+                print(f"🎵 Now playing: {search_query.title()} on YouTube")
+
 def mainfunction(source):
         r.adjust_for_ambient_noise(source, duration=1)
         #r.pause_threshold = 1.0
@@ -483,6 +512,8 @@ def mainfunction(source):
                 overview()
         elif lower_user.startswith("open"):
                 openApp(lower_user)
+        elif lower_user.startswith("play"):
+                playmedia(lower_user)
         elif user.startswith("hello AI"):
                 response = AI(user[len("hello AI"):].lstrip())
                 print("AI response: " + response)
