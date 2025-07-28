@@ -19,6 +19,7 @@ import sqlite3
 import datetime
 import os.path
 import feedparser
+from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -371,7 +372,8 @@ def get_city_by_ip():
     return ""
 
 def getweather():
-        api_key = "5d58a50824beaf4729bac49348961083"
+        load_dotenv()  # This loads variables from .env into os.environ
+        api_key = os.getenv("API_KEY")
         city = get_city_by_ip()
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
 
