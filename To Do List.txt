@@ -1,13 +1,3 @@
-Manage calendars: Create, modify, or remind about appointments.
-
-Schedule a meeting with Bob about construction on July 27, 5pm at my house for 90 minutes.
-
-Cancel the meeting at July 27, 5pm
-
-753310845754-c09fakgg2t1312sp7on9q1saqqri06ja.apps.googleusercontent.com
-
-Send reminders: For tasks, deadlines, or important dates.
-
 To-do list management: Add, remove, and check off tasks.
 
 Daily briefing: Give an overview of the day — meetings, weather, traffic.
