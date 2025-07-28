@@ -16,7 +16,7 @@ import re
 from datetime import datetime, timedelta
 from tzlocal import get_localzone_name
 from dateparser.search import search_dates
-
+import sqlite3
 import datetime
 import os.path
 from google.auth.transport.requests import Request
@@ -286,6 +286,77 @@ def Cancelschedule(text):
         except Exception as e:
                 print(f"Error deleting event: {e}")
 
+conn = None
+cursor = None
+DB_NAME = "todo.db"
+def setup_db():
+        # Initialize SQLite DB
+        global conn, cursor
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                description TEXT NOT NULL,
+                done INTEGER DEFAULT 0
+                )
+        """)
+        conn.commit()
+        conn.close()
+# Add task
+def add_task(description):
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        try:
+                cursor.execute("INSERT INTO tasks (description) VALUES (?)", (description,))
+                conn.commit()
+                print(f"✅ Task added: '{description}'")
+        except sqlite3.IntegrityError:
+                print(f"Task '{description}' already exists.")
+        conn.close()
+
+
+# List tasks
+def list_tasks():
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT description, done FROM tasks")
+        rows = cursor.fetchall()
+        conn.close()
+        if not rows:
+                print("Your list is empty.")
+                return
+        print("\n".join([f"[{'✓' if done else '✗'}] {desc}" for desc, done in rows]))
+
+
+# Mark task as done
+def mark_done(description):
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE tasks SET done = 1 WHERE description = ?", (description,))
+        if cursor.rowcount == 0:
+                conn.close()
+                print(f"Task '{description}' not found.")
+                return
+        conn.commit()
+        conn.close()
+        print(f"☑️ Task {description} marked as done.")
+
+# Delete task
+def delete_task(description):
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM tasks WHERE description = ?", (description,))
+        if cursor.rowcount == 0:
+                conn.close()
+                print(f"Task '{description}' not found.")
+                return
+        conn.commit()
+        conn.close()
+        print(f"🗑️ Task {description} deleted.")
+
+
 def mainfunction(source):
         r.adjust_for_ambient_noise(source, duration=1)
         #r.pause_threshold = 1.0
@@ -298,6 +369,7 @@ def mainfunction(source):
                 print("Sorry, I could not understand what you said.")
         except sr.RequestError as e:
                 print(f"API error: {e}")
+        lower_user = user.lower()
         if user == "Excel":
                 excel()
         elif user == "internet":
@@ -308,6 +380,20 @@ def mainfunction(source):
                 schedule(user)
         elif user.startswith("Cancel"):
                 Cancelschedule(user)
+        elif lower_user.startswith("add"):
+                match = re.search(r'add\s+(.+)\s+to my list', lower_user)
+                if match:
+                        add_task(match.group(1))
+        elif "show me my list" in lower_user:
+                list_tasks()
+        elif lower_user.startswith("mark"):
+                match = re.search(r'mark\s+(.+)\s+as done', lower_user)
+                if match:
+                        mark_done(match.group(1))
+        elif lower_user.startswith("delete"):
+                match = re.search(r'delete\s+(.+)', lower_user)
+                if match:
+                        delete_task(match.group(1))
         elif user.startswith("hello AI"):
                 response = AI(user[len("hello AI"):].lstrip())
                 print("AI response: " + response)
