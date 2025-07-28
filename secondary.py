@@ -6,6 +6,7 @@ import sys
 import asyncio
 from googletrans import Translator
 import builtins
+import requests
 import functools
 import fasttext
 import dateparser
@@ -17,6 +18,7 @@ from dateparser.search import search_dates
 import sqlite3
 import datetime
 import os.path
+import feedparser
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -361,6 +363,78 @@ def delete_task(description):
         conn.close()
         print(f"🗑️ Task {description} deleted.")
 
+def get_city_by_ip():
+    response = requests.get("https://ipinfo.io/json")
+    if response.status_code == 200:
+        data = response.json()
+        return data.get("city")
+    return ""
+
+def getweather():
+        api_key = "5d58a50824beaf4729bac49348961083"
+        city = get_city_by_ip()
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
+
+        response = requests.get(url)
+        weather = {}
+        if response.status_code == 200:
+                data = response.json()
+                weather = {
+                        'city': data['name'],
+                        'temperature': data['main']['temp'],
+                        'description': data['weather'][0]['description'],
+                        'humidity': data['main']['humidity'],
+                        'wind_speed': data['wind']['speed']
+                }
+                print(weather.get('city') + " has " + weather.get('description') + " with a temperature of " + str(weather.get('temperature')) + " degrees celsius with a humidity of " + str(weather.get('humidity')) + " and a wind speed of " + str(weather.get('wind_speed')) + ".")
+                return
+        print("Weather is not available.")
+
+def getnews():
+        feed = feedparser.parse("http://feeds.bbci.co.uk/news/rss.xml")
+        news_list = []
+        for entry in feed.entries[:3]:  # Top 3 articles
+                news_list.append({
+                        "title": entry.title,
+                        "link": entry.link,
+                        "summary": entry.summary
+                })
+        for i in news_list:
+                print("News Title: " + i.get('title') + "\nSummary: " + i.get('summary'))
+
+def get_today_events():
+        creds = new_creds
+        service = build('calendar', 'v3', credentials=creds)
+        # Get the current time range for "today"
+        now = datetime.datetime.utcnow()
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + 'Z'
+        end_of_day = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat() + 'Z'
+
+        events_result = service.events().list(
+                calendarId='primary',
+                timeMin=start_of_day,
+                timeMax=end_of_day,
+                singleEvents=True,
+                orderBy='startTime'
+        ).execute()
+
+        events = events_result.get('items', [])
+
+        if not events:
+                print("No events today.")
+        else:
+                print("Today's events:")
+                for event in events:
+                        start = event['start'].get('dateTime', event['start'].get('date'))
+                        print(f"🕒 {start} — {event['summary']}")
+
+
+def overview():
+        get_today_events()
+        list_tasks()
+        getweather()
+        getnews()
+
 def secondaryfunction():
         ppid = os.getppid()
         try:
@@ -393,6 +467,12 @@ def secondaryfunction():
                                 match = re.search(r'delete\s+(.+)', lower_user)
                                 if match:
                                         delete_task(match.group(1))
+                        elif "weather" in lower_user:
+                                getweather()
+                        elif "news" in lower_user:
+                                getnews()
+                        elif lower_user == "give me an overview of today":
+                                overview()
                         elif user.startswith("hello AI"):
                                 response = AI(user[len("hello AI"):].lstrip())
                                 print("AI response: " + response)

@@ -1,14 +1,8 @@
-To-do list management: Add, remove, and check off tasks.
-
-Daily briefing: Give an overview of the day — meetings, weather, traffic.
-
 Web search: Answer general knowledge queries using search engines.
 
 Email drafting/sending: Compose and send emails on your behalf.
 
 Open apps or websites: Launch applications or navigate to specific pages.
-
-Read news/weather: Provide updates from online sources.
 
 Summarize articles or PDFs
 
