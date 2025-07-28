@@ -437,6 +437,12 @@ def overview():
         getweather()
         getnews()
 
+def openApp(message):
+        match = re.search(r'^open\s+(.+)$', message.strip(), re.IGNORECASE)
+        if match:
+                app_name = match.group(1).strip()
+                os.system("start " + app_name + ".exe")
+
 def secondaryfunction():
         ppid = os.getppid()
         try:
@@ -475,6 +481,8 @@ def secondaryfunction():
                                 getnews()
                         elif lower_user == "give me an overview of today":
                                 overview()
+                        elif lower_user.startswith("open"):
+                                openApp(lower_user)
                         elif user.startswith("hello AI"):
                                 response = AI(user[len("hello AI"):].lstrip())
                                 print("AI response: " + response)
