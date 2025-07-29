@@ -375,7 +375,7 @@ def get_city_by_ip():
     return ""
 
 def getweather():
-        load_dotenv()  # This loads variables from .env into os.environ
+        load_dotenv("keys.env")  # This loads variables from .env into os.environ
         api_key = os.getenv("WEATHER_API_KEY")
         city = get_city_by_ip()
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
@@ -473,6 +473,30 @@ def playmedia(message):
                 webbrowser.open(url)
                 print(f"🎵 Now playing: {search_query.title()} on YouTube")
 
+def convert(messages):
+        pattern = r"(\d+(?:\.\d+)?)\s*([a-z]{3})\s*(?:to|in|into)\s*([a-z]{3})"
+
+        match = re.search(pattern, messages)
+        amount = 0
+        from_currency = ""
+        to_currency = ""
+        if match:
+                amount = float(match.group(1))
+                from_currency = match.group(2).upper()
+                to_currency = match.group(3).upper()
+                print(str(amount) + " " + from_currency + " " + to_currency)
+        load_dotenv("keys.env")  # This loads variables from .env into os.environ
+        CONVERT_ACCESS_KEY = os.getenv("CONVERT_ACCESS_KEY")
+        url = f'https://api.exchangerate.host/convert?access_key={CONVERT_ACCESS_KEY}&from={from_currency}&to={to_currency}&amount={amount}'
+        print(url)
+        response = requests.get(url)
+        data = response.json()
+        if data.get("result") is not None:
+                final_amount = data["result"]
+                print('{} {} = {} {}'.format(amount, from_currency, final_amount, to_currency))
+        else:
+                print("❌ Conversion failed.")
+
 def secondaryfunction():
         ppid = os.getppid()
         try:
@@ -515,6 +539,8 @@ def secondaryfunction():
                                 openApp(lower_user)
                         elif lower_user.startswith("play"):
                                 playmedia(lower_user)
+                        elif lower_user.startswith("convert"):
+                                convert(lower_user)
                         elif user.startswith("hello AI"):
                                 response = AI(user[len("hello AI"):].lstrip())
                                 print("AI response: " + response)
