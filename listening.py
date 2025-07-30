@@ -23,6 +23,9 @@ import os.path
 import feedparser
 import webbrowser
 import json
+import threading
+import time
+import winsound
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -490,6 +493,83 @@ def convert(messages):
                 print('{} {} = {} {}'.format(amount, from_currency, final_amount, to_currency))
         else:
                 print("❌ Conversion failed.")
+
+class NonBlockingTimer:
+    def __init__(self, duration, callback):
+        self.duration = duration              # Original duration in seconds
+        self.remaining = duration             # Time left
+        self.callback = callback              # Function to call when done
+        self._running = False
+        self._thread = None
+
+    def _run(self):
+        start_time = time.time()
+        self._running = True
+
+        while self._running and self.remaining > 0:
+            time.sleep(1)  # update every 1s
+            elapsed = time.time() - start_time
+            self.remaining = max(self.duration - elapsed, 0)
+
+        if self._running:  # Timer finished normally
+            self.callback()
+
+    def start(self):
+        if not self._thread or not self._thread.is_alive():
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+
+    def stop(self):
+        self._running = False
+
+    def get_remaining_time(self):
+        return round(self.remaining, 1)
+
+    def get_original_time(self):
+        return self.duration
+
+def timer_done():
+    print("\n⏰ Timer finished!")
+    winsound.MessageBeep()
+
+timers = None
+def setuptimer(message):
+        pattern = r"timer\s+for\s+(\d+)\s*(sec|second|seconds|min|minute|minutes)?"
+        match = re.search(pattern, message, re.IGNORECASE)
+        seconds = 0
+        global timers
+        if match:
+                value = int(match.group(1))
+                unit = match.group(2) or "seconds"
+                if unit.lower().startswith("min"):
+                        value *= 60
+                if unit.lower().startswith("hour"):
+                        value *= 3600
+                seconds = value
+                timers = NonBlockingTimer(seconds, timer_done)
+                timers.start()
+                print("Timer set for " + str(seconds) + " seconds.")
+                return
+
+        if re.search(r"(how much time|time left|remaining time)", message, re.IGNORECASE):
+                if timers:
+                        if timers.get_remaining_time() == 0:
+                                print("\n⏰ Timer finished!")
+                                return
+                        total_seconds = timers.get_remaining_time()
+                        hours = total_seconds // 3600
+                        remainder = total_seconds % 3600
+                        minutes = remainder // 60
+                        seconds = remainder % 60
+                        if hours == 0:
+                                if minutes == 0:
+                                        print(str(seconds) + " seconds remaining on the timer")
+                                else:
+                                        print(str(minutes) + " mins and " + str(seconds) + " seconds remaining on the timer")
+                        else:
+                                print(str(hours) + " hours and " + str(minutes) + " mins and " + str(seconds) + " seconds remaining on the timer")
+                else:
+                        print("No timers found.")
 
 def mainfunction(source):
         r.adjust_for_ambient_noise(source, duration=1)
