@@ -26,6 +26,11 @@ import time
 import winsound
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from ddgs import DDGS
+from langdetect import detect
+import trafilatura
+from transformers import pipeline
+from sentence_transformers import SentenceTransformer, util
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -577,6 +582,222 @@ def setuptimer(message):
                 else:
                         print("No timers found.")
 
+def websearch(message):
+        lst = []
+        query = message.lower().replace("search for ", "")
+        with DDGS() as ddgs:
+                results = ddgs.text(query, max_results=20)
+                #for i, result in enumerate(results, start=1):
+                #        print(f"{i}. {result['title']} - {result['href']}")
+                lst.extend(results)
+                #result elements: title, href, body
+        return lst
+model = None
+def get_domain_boost(url):
+    if ".gov" in url or ".edu" in url:
+        return 3
+    elif any(domain in url for domain in ["nytimes.com", "bbc.com", "forbes.com"]):
+        return 2
+    elif ".org" in url:
+        return 1
+    return 0
+
+def rank_results(search_results):
+    ranked_results = []
+    for url, title, similarity_score in search_results:
+        professionalism = get_domain_boost(url)
+        total_score = similarity_score + professionalism  # combine relevance + professionalism
+        ranked_results.append((url, title, total_score))
+
+    ranked_results.sort(key=lambda x: x[2], reverse=True)
+    return ranked_results
+
+def pick_top_k(links, titles, message, k=3, similarity_threshold=0.75):
+        # Embed titles and statement
+        title_embeddings = model.encode(titles, convert_to_tensor=True)
+        statement_embedding = model.encode(message, convert_to_tensor=True)
+
+        # Compute similarity scores to statement
+        sims = util.cos_sim(statement_embedding, title_embeddings)[0]
+        # Sort titles by relevance (descending)
+        sorted_indices = sims.argsort(descending=True)
+
+        selected = []
+        selected_indices = []
+        """
+        for idx in sorted_indices:
+                if len(selected) == k:
+                        break
+                candidate_embedding = title_embeddings[idx]
+
+                # Check similarity with already selected titles
+                is_redundant = False
+                for sel_idx in selected_indices:
+                        sim_score = util.cos_sim(candidate_embedding, title_embeddings[sel_idx])[0].item()
+                        if sim_score > similarity_threshold:
+                                is_redundant = True
+                                break
+
+                if not is_redundant:
+                        selected.append(titles[idx])
+                        selected_indices.append(idx)
+        """
+        i = 0
+        search_results = []
+        similarity_lst = sims.tolist()
+        for j in links:
+                search_results.append((j['href'], j['title'], similarity_lst[i]))
+                i = i + 1
+        ranked = rank_results(search_results)
+        final_lst = []
+        final_lst.append(ranked[0][1])
+        final_lst.append(ranked[1][1])
+        final_lst.append(ranked[2][1])
+        return(final_lst)  # Top 3 results
+
+def rankUrl(lst, message):
+        titles = []
+        links = []
+        body = []
+        for result in lst:
+                titles.append(result['title'])
+                links.append(result['href'])
+                body.append(result['body'])
+
+        return pick_top_k(lst, titles, message, k=3)
+
+def filter_english_titles(titles):
+    english_titles = []
+    for title in titles:
+        try:
+            if detect(title) == 'en':  # Keep only English
+                english_titles.append(title)
+        except:
+            continue  # Skip titles that cannot be detected
+    return english_titles
+
+def extract_clean_text(url):
+    downloaded = trafilatura.fetch_url(url)
+    if downloaded:
+        return trafilatura.extract(downloaded)
+    return None
+
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+def safe_summarize(text, default_max_length=800, default_min_length=150, chunk_size=800):
+    if not text or not text.strip():
+        return "No content to summarize."
+
+    words = text.split()
+    summaries = []
+
+    for i in range(0, len(words), chunk_size):
+        chunk = " ".join(words[i:i + chunk_size]).strip()
+
+        if not chunk:
+            continue
+
+        chunk_word_count = len(chunk.split())
+
+        # If the chunk is too small, just keep it as-is
+        if chunk_word_count < 50:
+            summaries.append(chunk)
+            continue
+
+        try:
+            dynamic_max_length = min(default_max_length, max(50, chunk_word_count // 2))
+            dynamic_min_length = min(default_min_length, max(10, chunk_word_count // 6))
+
+            result = summarizer(
+                chunk,
+                max_length=dynamic_max_length,
+                min_length=dynamic_min_length,
+                do_sample=False
+            )
+
+            if result and isinstance(result, list) and "summary_text" in result[0]:
+                summaries.append(result[0]["summary_text"])
+            else:
+                summaries.append(chunk)  # fallback if summarizer fails
+        except Exception:
+            # ✅ No more repeated errors: just use the chunk itself
+            summaries.append(chunk)
+
+    if not summaries:
+        return "No valid chunks to summarize."
+
+    merged_summary = " ".join(summaries)
+
+    # Summarize the merged result only if we actually summarized multiple chunks
+    if len(summaries) > 1:
+        try:
+            merged_word_count = len(merged_summary.split())
+            dynamic_max_length = min(default_max_length, max(50, merged_word_count // 2))
+            dynamic_min_length = min(default_min_length, max(10, merged_word_count // 6))
+
+            result = summarizer(
+                merged_summary,
+                max_length=default_max_length,
+                min_length=default_min_length,
+                do_sample=False
+            )
+            return result[0]["summary_text"]
+        except Exception:
+            return merged_summary
+
+    return summaries[0]
+
+def search_AI(message):
+        """
+        Step 1:  web.search("latest iPhone model 2025") and get 10-20 links
+        E.x. Bing results:
+           1. "Apple launches iPhone 17 Pro Max" – technews.com
+           2. "Everything about iPhone 17" – apple.com
+           ....
+           20. "What is the iPhone 17" - news.com
+        ↓
+        Step 2: rank the sources using: Query match, Source credibility, Freshness, Diversity and Redundancy removal.
+        Model reads snippets, picks best sources and pick the top 1–3 results after scoring
+        ↓
+        Step 3: Extract the info of the top 1-3 links
+        ↓
+        Step 4: Extract the relevant paragraphs and summarizes + merges the data to generates response:
+"""
+        urls = websearch(message)
+        if not urls:
+                print("Failed because can't search for topic")
+                return
+        ranked_urls = rankUrl(urls, message)
+        if not ranked_urls:
+                print("Failed because no titles were similar")
+                return
+        ranked_english_titles = filter_english_titles(ranked_urls)
+        if not ranked_english_titles:
+                print("Failed because no english titles found")
+                return
+        main_text = []
+        for i in urls:
+                for j in ranked_english_titles:
+                        if i['title'] == j:
+                                main_text.append(extract_clean_text(i['href']))
+        if not main_text:
+                print("Failed because no matches found")
+                return
+        for i in main_text[:]:
+                if i == None:
+                        main_text.remove(i)
+        merged_text = "\n\n".join(main_text)
+
+        try:
+                summary = safe_summarize(merged_text)
+                print("Success")
+                print(summary)
+        except (ValueError, IndexError):
+                print("Failed to Summarize")
+                if len(main_text[0]) > 500:
+                        print(main_text[0][:500])
+                else:
+                        print(main_text[0])
+
 def secondaryfunction():
         ppid = os.getppid()
         try:
@@ -630,6 +851,8 @@ def secondaryfunction():
                                 os._exit(1)
                         elif user.startswith("translate"):
                                 translate_t(user)
+                        elif lower_user.startswith("search for"):
+                                search_AI(user)
                         else:
                                 print("unknown command")
         except BaseException as e:
@@ -648,5 +871,6 @@ if __name__ == "__main__":
         fastmodel = fasttext.load_model('lid.176.ftz')
         new_creds = loadCred()
         setup_db()
+        model = SentenceTransformer('all-MiniLM-L6-v2')
         secondaryfunction()
 
