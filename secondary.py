@@ -24,7 +24,6 @@ import json
 import threading
 import time
 import winsound
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from ddgs import DDGS
 from langdetect import detect
@@ -61,14 +60,6 @@ my_lang = {
         "to Urdu": "ur",
         "to Vietnamese": "vi"
         }
-def excel():
-        os.system("start excel.exe")
-
-def internet():
-        os.system("start chrome.exe")
-
-def media():
-        os.system("start wmplayer.exe")
 
 def AI(user):
         result = subprocess.run(
@@ -103,23 +94,6 @@ def translate_t(user):
         src_lang = labels[0].replace('__label__', '')
         result_text = asyncio.run(translate_text(user, src_lang, dest_lang))
         print(result_text)
-
-def test():
-        user = """Summarize this email: Subject: Application for [Job Title] - [Your Name]
-
-Dear [Hiring Manager Name],
-
-I am writing to express my strong interest in the [Job Title] position at [Company Name], as advertised on [Platform where you saw the ad - e.g., company website, LinkedIn, etc.]. I was particularly drawn to [mention something specific about the company or role that excites you] and believe my skills and experience align well with the requirements of this role.
-
-With [Number] years of experience in [Your Field], I have a proven track record of success in [mention 1-2 key accomplishments relevant to the job]. For example, in my previous role at [Previous Company], I [briefly describe a relevant accomplishment and its positive outcome]. I am proficient in [list 2-3 relevant skills, e.g., project management, data analysis, communication]. {Link: According to Jobstreet.com https://ph.jobstreet.com/career-advice/article/great-job-application-email}, I am also a highly motivated and results-oriented individual.
-
-I am confident that I can make a significant contribution to [Company Name] and am eager to learn more about this opportunity. My resume, which is attached, provides further details on my qualifications and experience.
-
-Thank you for your time and consideration. I look forward to hearing from you soon.
-
-Sincerely,"""
-        response = AI(user)
-        print("AI response: " + response)
 
 class updatedSchedule:
         def __init__(self, start, duration=30, subject="Team Meeting", location="Conference Room", body="Discuss Q3 progress."):
@@ -325,6 +299,7 @@ def setup_db():
         conn.close()
 # Add task
 def add_task(description):
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         try:
@@ -338,6 +313,7 @@ def add_task(description):
 
 # List tasks
 def list_tasks():
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT description, done FROM tasks")
@@ -351,6 +327,7 @@ def list_tasks():
 
 # Mark task as done
 def mark_done(description):
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("UPDATE tasks SET done = 1 WHERE description = ?", (description,))
@@ -364,6 +341,7 @@ def mark_done(description):
 
 # Delete task
 def delete_task(description):
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM tasks WHERE description = ?", (description,))
@@ -492,11 +470,9 @@ def convert(messages):
                 amount = float(match.group(1))
                 from_currency = match.group(2).upper()
                 to_currency = match.group(3).upper()
-                print(str(amount) + " " + from_currency + " " + to_currency)
         load_dotenv("keys.env")  # This loads variables from .env into os.environ
         CONVERT_ACCESS_KEY = os.getenv("CONVERT_ACCESS_KEY")
         url = f'https://api.exchangerate.host/convert?access_key={CONVERT_ACCESS_KEY}&from={from_currency}&to={to_currency}&amount={amount}'
-        print(url)
         response = requests.get(url)
         data = response.json()
         if data.get("result") is not None:
@@ -682,7 +658,7 @@ def extract_clean_text(url):
         return trafilatura.extract(downloaded)
     return None
 
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+summarizer = None
 def safe_summarize(text, default_max_length=800, default_min_length=150, chunk_size=800):
     if not text or not text.strip():
         return "No content to summarize."
@@ -789,7 +765,6 @@ def search_AI(message):
 
         try:
                 summary = safe_summarize(merged_text)
-                print("Success")
                 print(summary)
         except (ValueError, IndexError):
                 print("Failed to Summarize")
@@ -804,17 +779,9 @@ def secondaryfunction():
                 while(1):
                         user = input("Waiting for AI Input: ")
                         lower_user = user.lower()
-                        if user == "Excel":
-                                excel()
-                        elif user == "internet":
-                                internet()
-                        elif user == "music":
-                                media()
-                        elif user == "test":
-                                test()
-                        elif user.startswith("Schedule"):
+                        if lower_user.startswith("schedule"):
                                 schedule(user)
-                        elif user.startswith("Cancel"):
+                        elif lower_user.startswith("cancel"):
                                 Cancelschedule(user)
                         elif lower_user.startswith("add"):
                                 match = re.search(r'add\s+(.+)\s+to my list', lower_user)
@@ -854,7 +821,11 @@ def secondaryfunction():
                         elif lower_user.startswith("search for"):
                                 search_AI(user)
                         else:
-                                print("unknown command")
+                                response = AI(user)
+                                if "cannot" in response[:200] and "real-time" in response[:200]:
+                                        search_AI(user)
+                                else:
+                                        print("AI response: " + response)
         except BaseException as e:
                 result = subprocess.run(["tasklist", "/FI", f"PID eq {ppid}"], capture_output=True, text=True)
                 if "python" in result.stdout:
@@ -867,10 +838,11 @@ def secondaryfunction():
                 sys.exit(0)
 
 if __name__ == "__main__":
-        print("Start of Secondary")
+        global fastmodel, summarizer, new_creds, model
         fastmodel = fasttext.load_model('lid.176.ftz')
         new_creds = loadCred()
         setup_db()
         model = SentenceTransformer('all-MiniLM-L6-v2')
+        summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
         secondaryfunction()
 

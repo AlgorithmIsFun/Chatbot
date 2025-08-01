@@ -61,15 +61,6 @@ my_lang = {
         "to Urdu": "ur",
         "to Vietnamese": "vi"
         }
-def excel():
-        os.system("start excel.exe")
-
-def internet():
-        os.system("start chrome.exe")
-
-def media():
-        os.system("start wmplayer.exe")
-
 def respond_voice(text, language="en"):
         #subprocess.run(["espeak", text])
         print("Loading response voice")
@@ -98,6 +89,7 @@ def translate_t(user):
         user = user[len("translate"):].lstrip()
         dest_lang = ""
         lang_found = 0
+        # numpy library must be 1.26.4
         for key in my_lang:
                 if user.endswith(key):
                         user = user[:-len(key)].rstrip()
@@ -238,7 +230,6 @@ def schedule(text):
         #creds = flow.run_local_server(port=0)
         creds = new_creds
         sch = extractSchedule(text)
-        print(sch)
         service = build('calendar', 'v3', credentials=creds)
         end = sch.start + timedelta(minutes=sch.duration)
         timez = get_localzone_name()
@@ -319,6 +310,7 @@ def setup_db():
         conn.close()
 # Add task
 def add_task(description):
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         try:
@@ -332,6 +324,7 @@ def add_task(description):
 
 # List tasks
 def list_tasks():
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT description, done FROM tasks")
@@ -345,6 +338,7 @@ def list_tasks():
 
 # Mark task as done
 def mark_done(description):
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("UPDATE tasks SET done = 1 WHERE description = ?", (description,))
@@ -358,6 +352,7 @@ def mark_done(description):
 
 # Delete task
 def delete_task(description):
+        global conn, cursor
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM tasks WHERE description = ?", (description,))
@@ -486,11 +481,9 @@ def convert(messages):
                 amount = float(match.group(1))
                 from_currency = match.group(2).upper()
                 to_currency = match.group(3).upper()
-                print(str(amount) + " " + from_currency + " " + to_currency)
         load_dotenv("keys.env")  # This loads variables from .env into os.environ
         CONVERT_ACCESS_KEY = os.getenv("CONVERT_ACCESS_KEY")
         url = f'https://api.exchangerate.host/convert?access_key={CONVERT_ACCESS_KEY}&from={from_currency}&to={to_currency}&amount={amount}'
-        print(url)
         response = requests.get(url)
         data = response.json()
         if data.get("result") is not None:
@@ -676,7 +669,7 @@ def extract_clean_text(url):
         return trafilatura.extract(downloaded)
     return None
 
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+summarizer = None
 def safe_summarize(text, default_max_length=800, default_min_length=150, chunk_size=800):
     if not text or not text.strip():
         return "No content to summarize."
@@ -783,7 +776,6 @@ def search_AI(message):
 
         try:
                 summary = safe_summarize(merged_text)
-                print("Success")
                 print(summary)
         except (ValueError, IndexError):
                 print("Failed to Summarize")
@@ -805,15 +797,9 @@ def mainfunction(source):
         except sr.RequestError as e:
                 print(f"API error: {e}")
         lower_user = user.lower()
-        if user == "Excel":
-                excel()
-        elif user == "internet":
-                internet()
-        elif user == "music":
-                media()
-        elif user.startswith("Schedule"):
+        if lower_user.startswith("schedule"):
                 schedule(user)
-        elif user.startswith("Cancel"):
+        elif lower_user.startswith("cancel"):
                 Cancelschedule(user)
         elif lower_user.startswith("add"):
                 match = re.search(r'add\s+(.+)\s+to my list', lower_user)
@@ -853,8 +839,14 @@ def mainfunction(source):
                         respond_voice(response, language)
         elif user == "close AI":
                 os._exit(1)
-        elif user.startswith("translate"):
+        elif lower_user.startswith("translate"):
                 translate_t(user)
+        else:
+                response = AI(user)
+                if "cannot" in response[:200] and "real-time" in response[:200]:
+                        search_AI(user)
+                else:
+                        print("AI response: " + response)
 
 def background_task():
         #"tts_models/en/ljspeech/tacotron2-DDC" is the better model but slower
@@ -865,11 +857,14 @@ def background_task():
         TTS_READY = 1
         
 if __name__ == "__main__":
+        global fastmodel, summarizer, new_creds, model
         print("Start of main")
         thread = Thread(target=background_task)
         thread.start()
         fastmodel = fasttext.load_model('lid.176.ftz')
+        summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
         new_creds = loadCred()
+        model = SentenceTransformer('all-MiniLM-L6-v2')
         r = sr.Recognizer()
         # Extend how long it waits before assuming the user is done speaking
         r.pause_threshold = 1.5        # seconds of silence before stopping recording
