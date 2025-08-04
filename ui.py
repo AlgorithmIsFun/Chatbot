@@ -68,11 +68,19 @@ def main_window():
     root.geometry("800x500")
     root.configure(bg="white")
     root.iconbitmap("green-circle.ico")
+
+    bg_image = Image.open("images\\background.jfif")  # Replace with your image path
+    bg_image = bg_image.resize((800, 500))  # Resize to window size
+    bg_photo = ImageTk.PhotoImage(bg_image)
+
+    # Create a label for the background
+    background_label = tk.Label(root, image=bg_photo)
+    background_label.place(x=0, y=0, relwidth=1, relheight=1)
     # Create a container frame for sidebar + main content
     main_frame = tk.Frame(root)
     main_frame.pack(side="left", fill="y", expand=True)
     # Create sidebar frame
-    sidebar = tk.Frame(main_frame, width=200, bg="#2c3e50")
+    sidebar = tk.Frame(main_frame, width=200, bg="#04101e")
     sidebar.pack(side="left", fill="y")
     # Load image
     image = Image.open("blue_circle.gif")  # Change to your image file
@@ -107,6 +115,13 @@ def main_window():
 
     toggle_button = tk.Button(root, text="<<", bg="white", fg="black", command=toggle_sidebar)
     toggle_button.pack(side="top", anchor="nw", padx=0, pady=0)
+
+    def change_model(event=None):
+        print("In development")
+
+    changemodel_button = tk.Button(root, text="Change Model", bg="white", fg="black", command=change_model)
+    changemodel_button.pack(side="top", anchor="ne", padx=0, pady=0)
+
 
     def new_chat():
         for i in range(20):
@@ -214,21 +229,42 @@ def main_window():
     listbox.bind("<<ListboxSelect>>", on_select)
     listbox.bind("<Button-3>", show_context_menu)
 
+
     def settings(event=None):
         print("In development")
 
     settings_button = tk.Button(sidebar, text="Settings/Help", bg="white", fg="black", command=settings)
     settings_button.pack(side="bottom")
+
+
     global chat_box
     # Chat display
-    chat_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=15, state=tk.DISABLED)
+    chat_box = scrolledtext.ScrolledText(root, wrap=tk.WORD, height=15, state=tk.DISABLED, fg="green", bg="black")
     chat_box.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
     # Input area
-    frame = tk.Frame(root, bg="white")
+    frame = tk.Frame(root, bg="#03101e")
     frame.pack(padx=10, pady=5, fill=tk.X)
 
-    entry = tk.Entry(frame, font=("Arial", 12))
+    def attach_item(event=None):
+        print("In development")
+
+    def image_creation(event=None):
+        print("In development")
+
+    # Create context menu
+    import_menu = tk.Menu(frame, tearoff=0)
+    import_menu.add_command(label="Attach", command=attach_item)
+    import_menu.add_command(label="Image Creation", command=image_creation)
+
+    def import_doc(event):
+        import_menu.post(event.x_root, event.y_root)
+
+    import_button = tk.Button(frame, text="+", bg="white", fg="black")
+    import_button.pack(side=tk.LEFT)
+    import_button.bind("<Button-1>", import_doc)
+
+    entry = tk.Entry(frame, font=("Arial", 12), fg="green", bg="black")
     entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
     entry.bind("<Return>", send_message)  # ⬅ Bind Enter key
 
@@ -249,7 +285,7 @@ def main_window():
     bright_photo = ImageTk.PhotoImage(brighten_image(button_image, 1.5))
 
     def start_listening(event=None):
-        print("I need to implement speech to text api from listening.py")
+        print("In development. I need to implement speech to text api from listening.py")
 
     # Create button with image
     img_button = tk.Button(frame, image=mic_photo, command=start_listening, borderwidth=0, highlightthickness=0)
