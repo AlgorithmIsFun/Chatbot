@@ -1,0 +1,24 @@
+List of Personal Assistant AIs:
+Cortana (Windows): 
+Google Assistant (Android) - 
+Alexa (Windows app)
+Mycroft AI (Open Source)
+Jarvis AI (Open Source)
+Notes:
+Icon at top, results at middle, text box at bottom. Deletes results after every request. Cites. right button is for mic support. constantly listens for the wake word "Alexa" but only records and processes after hearing the word.
+Signs: Listening, Recording request, processing and ending response
+
+GPT Series:
+ChatGPT (General)
+Gemini (Long docs)
+Claude 4 (coding model all cmdline)
+DeepSeek R1 (Open‑source, cmdline)
+Grok 3 (Math/Science)
+Microsoft Copilot (Microsoft supported)
+Notes:
+Left taskbar: Home Button, New Chat, Search chat, other apps, all chats organized by date/time, Settings/Help, Collapse menu (Collapse left bar into just this button)
+	Chats: Share, Pin, Rename or Delete
+Chat: Text based chat with voice button, attach docs button, deep research button, fast option button, Create docs button, generate Image button, suggested questions to ask AI
+Response: Shows AI response, all previous requests/response of session, change gpt model, account info (sign in/out, sign up)
+
+Tokens are how much info a GPT can handle to generate content. 1 token = 1 word/data
