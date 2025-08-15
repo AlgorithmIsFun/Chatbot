@@ -1,2 +1,3 @@
 Models Loaded.
-Waiting for AI Input: 
+Waiting for AI Input: Error: 404 Not Found
+Waiting for AI Input: An error occured:  KeyboardInterrupt()

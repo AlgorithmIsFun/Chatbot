@@ -1,1 +1,2 @@
 Models Loaded.
+Command: generate video A cat surfing on a wave in the ocean.

@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-from tkinter import scrolledtext, simpledialog, messagebox
+from tkinter import scrolledtext, simpledialog, messagebox, filedialog
 from PIL import Image, ImageTk, ImageSequence, ImageEnhance
 import subprocess
 import threading
@@ -8,6 +8,7 @@ from win11toast import toast
 from pathlib import Path
 import ctypes
 import time
+import speech_recognition as sr
 myappid = 'ak.chatbot'  # This should be a unique string
 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 chat_box = None
@@ -64,11 +65,12 @@ def main_window():
 
     # Main window
     root = tk.Tk()
-    root.title("Image + Chatbox UI")
+    root.title("Skynet")
     root.geometry("800x500")
     root.configure(bg="white")
     root.iconbitmap("green-circle.ico")
-
+    root.resizable(False, False)
+    """
     bg_image = Image.open("images\\background.jfif")  # Replace with your image path
     bg_image = bg_image.resize((800, 500))  # Resize to window size
     bg_photo = ImageTk.PhotoImage(bg_image)
@@ -76,11 +78,12 @@ def main_window():
     # Create a label for the background
     background_label = tk.Label(root, image=bg_photo)
     background_label.place(x=0, y=0, relwidth=1, relheight=1)
+    """
     # Create a container frame for sidebar + main content
     main_frame = tk.Frame(root)
     main_frame.pack(side="left", fill="y", expand=True)
     # Create sidebar frame
-    sidebar = tk.Frame(main_frame, width=200, bg="#04101e")
+    sidebar = tk.Frame(main_frame, width=200)
     sidebar.pack(side="left", fill="y")
     # Load image
     image = Image.open("blue_circle.gif")  # Change to your image file
@@ -243,18 +246,22 @@ def main_window():
     chat_box.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
     # Input area
-    frame = tk.Frame(root, bg="#03101e")
+    frame = tk.Frame(root)
     frame.pack(padx=10, pady=5, fill=tk.X)
 
     def attach_item(event=None):
-        print("In development")
+        file_path = filedialog.askopenfilename(
+            filetypes=[("Word Documents", "*.docx")]
+        )
+        if file_path:
+            print("File selected:", file_path)
 
     def image_creation(event=None):
         print("In development")
 
     # Create context menu
     import_menu = tk.Menu(frame, tearoff=0)
-    import_menu.add_command(label="Attach", command=attach_item)
+    import_menu.add_command(label="Upload files", command=attach_item)
     import_menu.add_command(label="Image Creation", command=image_creation)
 
     def import_doc(event):
@@ -273,28 +280,80 @@ def main_window():
         enhancer = ImageEnhance.Brightness(img)
         return enhancer.enhance(factor)
 
-    def on_enter(event):
-        img_button.config(image=bright_photo)
+    def on_enter(event=None):
+        if toggle_mic:
+            img_button.config(image=brighttoggle_photo)
+        else:
+            img_button.config(image=bright_photo)
 
-    def on_leave(event):
-        img_button.config(image=mic_photo)
+    def on_leave(event=None):
+        if toggle_mic:
+            img_button.config(image=mictoggle_photo)
+        else:
+            img_button.config(image=mic_photo)
 
     button_image = Image.open("images\mic.png")
-    button_image = button_image.resize((80, 80))  # Resize if needed
+    button_image = button_image.resize((60, 60))  # Resize if needed
     mic_photo = ImageTk.PhotoImage(button_image)
     bright_photo = ImageTk.PhotoImage(brighten_image(button_image, 1.5))
 
-    def start_listening(event=None):
-        print("In development. I need to implement speech to text api from listening.py")
+    buttontoggle_image = Image.open("images\mic_toggle.png")
+    buttontoggle_image = buttontoggle_image.resize((60, 60))  # Resize if needed
+    mictoggle_photo = ImageTk.PhotoImage(buttontoggle_image)
+    brighttoggle_photo = ImageTk.PhotoImage(brighten_image(buttontoggle_image, 1.5))
+
+    toggle_mic = False
+    def toggle_listening(event=None):
+        nonlocal toggle_mic
+        toggle_mic = not toggle_mic
+        if toggle_mic:
+            thread = threading.Thread(target=start_listening, args=(toggle_mic,))
+            thread.daemon = True  # Optional: closes thread when app exits
+            thread.start()
+
+    def start_listening(toggle_mic):
+        global chat_box, chat_name
+        r = sr.Recognizer()
+        # Extend how long it waits before assuming the user is done speaking
+        r.pause_threshold = 1.5  # seconds of silence before stopping recording
+        r.energy_threshold = 300  # minimum audio level to detect speech
+        r.dynamic_energy_threshold = True
+
+        img_button.config(image=mictoggle_photo)
+        with sr.Microphone() as source:
+            while toggle_mic:
+                r.adjust_for_ambient_noise(source, duration=1)
+                # r.pause_threshold = 1.0
+                audio = r.listen(source)
+                message = ""
+                try:
+                    message = r.recognize_google(audio)
+                    print("You: ", message)
+                except sr.UnknownValueError:
+                    print("Sorry, I could not understand what you said.")
+                except sr.RequestError as e:
+                    print(f"API error: {e}")
+                if message:
+                    chat_box.config(state=tk.NORMAL)
+                    chat_box.insert(tk.END, f"You: {message}\n")
+                    chat_box.config(state=tk.DISABLED)
+                    chat_box.see(tk.END)
+                    process.stdin.write(message + "\n")
+                    process.stdin.flush()
+                    file_path = "chats\\{}.txt".format(chat_name)
+                    with open(file_path, "a") as file:
+                        file.write(message + "\n")
+        img_button.config(image=mic_photo)
 
     # Create button with image
-    img_button = tk.Button(frame, image=mic_photo, command=start_listening, borderwidth=0, highlightthickness=0)
+    img_button = tk.Button(frame, image=mic_photo, command=toggle_listening, borderwidth=0, highlightthickness=0)
     img_button.pack(side=tk.RIGHT)
 
     img_button.bind("<Enter>", on_enter)
     img_button.bind("<Leave>", on_leave)
-
     frame_index = 0
+
+
 
     def update_frame():
         nonlocal frame_index
@@ -309,10 +368,11 @@ def main_window():
 def loading_screen():
     # Create the main window
     root = tk.Tk()
-    root.title("Loading")
+    root.title("Skynet")
     root.geometry("500x400")
     root.resizable(False, False)
     root.config(bg="black")
+    root.resizable(False, False)
 
     # Load GIF
     gif = Image.open("logo_circle.gif")  # <-- replace with your animated GIF

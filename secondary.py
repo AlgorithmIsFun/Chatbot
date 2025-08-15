@@ -12,6 +12,7 @@ import fasttext
 import dateparser
 import spacy
 import re
+from PIL import Image
 from datetime import datetime, timedelta
 from tzlocal import get_localzone_name
 from dateparser.search import search_dates
@@ -24,6 +25,9 @@ import json
 import threading
 import time
 import winsound
+import torch
+from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers.utils import export_to_video
 from dotenv import load_dotenv
 from ddgs import DDGS
 from langdetect import detect
@@ -796,6 +800,50 @@ def search_AI(message):
                 else:
                         print(main_text[0])
 
+def show_image(filename):
+        img = Image.open(filename)
+        img.show()
+
+def generate_image(prompt):
+    load_dotenv("keys.env")
+    GENERATE_API_TOKEN = os.getenv("GENERATE_API_KEY")
+    API_URL = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+    headers = {
+        "Authorization": f"Bearer {GENERATE_API_TOKEN}"
+    }
+    response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+    text = prompt
+    first_three = " ".join(text.split()[:3])
+    filename = "images\\" + first_three + ".png"
+    counter = 1
+    while os.path.exists(filename):
+            filename = "images\\" + first_three + "{" + str(counter) + "}.png"
+            counter += 1
+    if response.status_code == 200:
+        with open(filename, "wb") as f:
+            f.write(response.content)
+        print(f"Image saved at {filename}")
+        show_image(filename)
+    else:
+        print("Error:", response.status_code, response.text)
+
+def download_video(prompt):
+        pipe = DiffusionPipeline.from_pretrained("damo-vilab/text-to-video-ms-1.7b", torch_dtype=torch.float32)
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+
+        filename = "videos\\" + first_three + ".png"
+        counter = 1
+        while os.path.exists(filename):
+                filename = "videos\\" + first_three + "{" + str(counter) + "}.png"
+                counter += 1
+        video_frames = pipe(prompt, num_frames=48, num_inference_steps=25).frames
+        video_path = export_to_video(video_frames[0], output_video_path=videos)
+        print(f"Text To Video Complete: Video saved at {video_path}")
+
+def generate_video(prompt):
+        threading.Thread(target=download_video, daemon=True, args=(prompt)).start()
+
+
 def secondaryfunction():
         ppid = os.getppid()
         try:
@@ -845,6 +893,16 @@ def secondaryfunction():
                                 translate_t(user)
                         elif lower_user.startswith("search for"):
                                 search_AI(user)
+                        elif lower_user.startswith("generate image"):
+                            match = re.match(r"generate image (.+)", lower_user)
+                            if match:
+                                prompt = match.group(1) if match else ""
+                                generate_image(prompt)
+                        elif lower_user.startswith("generate video"):
+                                match = re.match(r"generate video (.+)", lower_user)
+                                if match:
+                                        prompt = match.group(1) if match else ""
+                                        generate_video(prompt)
                         else:
                                 response = AI(user)
                                 if "cannot" in response[:200] and "real-time" in response[:200]:
